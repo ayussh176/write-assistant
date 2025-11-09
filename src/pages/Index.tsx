@@ -7,8 +7,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2, Copy } from "lucide-react";
 
-// OpenRouter API key
-const OPENROUTER_API_KEY = "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";
+const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY || "";
 
 const Index = () => {
   const [originalText, setOriginalText] = useState("");
@@ -18,76 +17,56 @@ const Index = () => {
   const [aiResponse, setAiResponse] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // Sync aiInput with updatedText
-  useEffect(() => {
-    setAiInput(updatedText);
-  }, [updatedText]);
+  useEffect(() => setAiInput(updatedText), [updatedText]);
 
   const handleRemoveText = () => {
-    if (!originalText) {
-      toast.error("Please enter some text first");
-      return;
-    }
-    if (!textToRemove) {
-      toast.error("Please enter text to remove");
-      return;
-    }
-
-    const regex = new RegExp(textToRemove.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-    const result = originalText.replace(regex, '');
-    setUpdatedText(result);
+    if (!originalText) return toast.error("Please enter some text first");
+    const regex = new RegExp(textToRemove.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    setUpdatedText(originalText.replace(regex, ""));
     toast.success("Text removed successfully");
   };
 
   const handleCopyText = () => {
-    if (!updatedText) {
-      toast.error("No text to copy");
-      return;
-    }
+    if (!updatedText) return toast.error("No text to copy");
     navigator.clipboard.writeText(updatedText);
-    toast.success("Text copied to clipboard");
+    toast.success("Copied to clipboard");
   };
 
   const handleAskAI = async () => {
-    if (!aiInput) {
-      toast.error("Please enter some text for the AI");
-      return;
-    }
+    if (!aiInput) return toast.error("Please enter some text for the AI");
+    if (!OPENROUTER_API_KEY) return toast.error("Missing API key (set VITE_OPENROUTER_API_KEY in .env)");
 
     setIsLoading(true);
     setAiResponse("");
 
     try {
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+          "HTTP-Referer": window.location.origin,
+          "X-Title": "Text Processor App",
         },
         body: JSON.stringify({
-          model: "openai/gpt-4o",
-          messages: [
-            {
-              role: "user",
-              content: aiInput,
-            },
-          ],
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: aiInput }],
           max_tokens: 1000,
         }),
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || "API request failed");
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error?.message || "API request failed");
       }
 
-      const data = await response.json();
-      const message = data.choices?.[0]?.message?.content || "No response from AI";
-      setAiResponse(message);
+      const data = await res.json();
+      const msg = data.choices?.[0]?.message?.content || "No response from AI";
+      setAiResponse(msg);
       toast.success("AI response received");
-    } catch (error) {
-      console.error("AI API error:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to get AI response");
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "Failed to get AI response");
     } finally {
       setIsLoading(false);
     }
@@ -102,7 +81,7 @@ const Index = () => {
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Panel: Text Processor */}
+          {/* Text Processor */}
           <Card>
             <CardHeader>
               <CardTitle>Text Processor</CardTitle>
@@ -137,12 +116,7 @@ const Index = () => {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="updated-text">Updated Text</Label>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCopyText}
-                    disabled={!updatedText}
-                  >
+                  <Button variant="outline" size="sm" onClick={handleCopyText} disabled={!updatedText}>
                     <Copy className="h-4 w-4 mr-2" />
                     Copy
                   </Button>
@@ -158,7 +132,7 @@ const Index = () => {
             </CardContent>
           </Card>
 
-          {/* Right Panel: AI Assistant */}
+          {/* AI Assistant */}
           <Card>
             <CardHeader>
               <CardTitle>AI Assistant</CardTitle>
@@ -176,11 +150,7 @@ const Index = () => {
                 />
               </div>
 
-              <Button 
-                onClick={handleAskAI} 
-                className="w-full" 
-                disabled={isLoading}
-              >
+              <Button onClick={handleAskAI} className="w-full" disabled={isLoading}>
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
